@@ -1,0 +1,55 @@
+name: 编译 Windows GUI 安装包
+
+# 手动点击运行编译
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. CMake 编译生成 exe
+      - name: CMake 配置
+        run: cmake -B build -S .
+        
+      - name: 编译 Release 版
+        run: cmake --build build --config Release
+
+      # 2. 自动下载安装打包工具（Inno Setup）
+      - name: 下载 Inno Setup 打包工具
+        run: |
+          curl -L "https://github.com/JRSoftware/InnoSetup/releases/download/v6.3.3/is.exe" -o is.exe
+          start /wait .\is.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+        shell: pwsh
+
+      # 3. 自动生成安装脚本并打包成 Setup.exe
+      - name: 打包成 Windows 安装程序
+        run: |
+          echo [Setup] > install_script.iss
+          echo AppName=MyGUIApp >> install_script.iss
+          echo AppVersion=1.0.0 >> install_script.iss
+          echo DefaultDirName={pf}\MyGUIApp >> install_script.iss
+          echo DefaultGroupName=MyGUIApp >> install_script.iss
+          echo OutputDir=.\output >> install_script.iss
+          echo OutputBaseFilename=MyGUIApp_Setup >> install_script.iss
+          echo SetupIconFile= >> install_script.iss
+          echo Compression=lzma >> install_script.iss
+          echo SolidCompression=yes >> install_script.iss
+          echo [Files] >> install_script.iss
+          echo Source: "build\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs >> install_script.iss
+          echo [Icons] >> install_script.iss
+          echo Name: "{group}\MyGUIApp"; Filename: "{app}\openvpn2.7.exe" >> install_script.iss
+          echo Name: "{commondesktop}\MyGUIApp"; Filename: "{app}\openvpn2.7.exe"; Tasks: desktopicon >> install_script.iss
+          echo [Tasks] >> install_script.iss
+          echo Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked >> install_script.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" install_script.iss
+        shell: pwsh
+
+      # 4. 上传安装包，可直接下载
+      - name: 上传 Windows 安装程序
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-GUI-Installer
+          path: output/
