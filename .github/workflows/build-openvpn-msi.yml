@@ -1,0 +1,46 @@
+name: Build OpenVPN Windows MSI Installer (32+64位)
+
+on:
+  workflow_dispatch:  # 手动点击运行
+
+jobs:
+  build-msi:
+    runs-on: windows-latest
+    steps:
+      - name: 拉取 OpenVPN 源码
+        uses: actions/checkout@v4
+        with:
+          repository: OpenVPN/openvpn
+          path: openvpn
+
+      - name: 拉取官方打包工具 openvpn-build
+        uses: actions/checkout@v4
+        with:
+          repository: OpenVPN/openvpn-build
+          path: openvpn-build
+
+      - name: 安装编译依赖 (Choco)
+        run: |
+          choco install -y cmake python3 openssl git vcredist2017
+          python -m pip install pywin32
+
+      - name: 编译 64位 + 生成 MSI
+        run: |
+          cd openvpn-build/windows-msi
+          .\build-and-package.ps1 -arch x64
+
+      - name: 编译 32位 + 生成 MSI
+        run: |
+          cd openvpn-build/windows-msi
+          .\build-and-package.ps1 -arch x86
+
+      - name: 整理所有安装包
+        run: |
+          mkdir output
+          copy openvpn-build\windows-msi\output\*.msi output\
+
+      - name: 上传 MSI 安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: openvpn-windows-msi
+          path: output/
